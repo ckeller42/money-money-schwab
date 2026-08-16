@@ -1,0 +1,133 @@
+#!/usr/bin/perl
+# xlsx2csv — convert a Schwab EAC .xlsx export to the section-marked CSV
+# the SchwabPortfolio.lua extension consumes. Core Perl only.
+use strict;
+use warnings;
+use IO::Uncompress::Unzip qw(unzip $UnzipError);
+
+my $xlsx = shift or die "usage: xlsx2csv <file.xlsx>\n";
+-f $xlsx or die "xlsx2csv: file not found: $xlsx\n";
+
+sub member {
+  my ($name) = @_;
+  my $out;
+  unzip($xlsx => \$out, Name => $name, BinModeOut => 1) or return undef;
+  return $out;
+}
+
+sub xml_unescape {
+  my ($s) = @_;
+  return '' unless defined $s;
+  $s =~ s/&lt;/</g;  $s =~ s/&gt;/>/g;  $s =~ s/&quot;/"/g;
+  $s =~ s/&apos;/'/g; $s =~ s/&amp;/&/g;
+  return $s;
+}
+
+# Shared strings → indexed array.
+my @shared;
+{
+  my $ss = member('xl/sharedStrings.xml') // '';
+  while ($ss =~ m{<(?:\w+:)?si\b[^>]*>(.*?)</(?:\w+:)?si>}sg) {
+    my $si = $1;
+    my $txt = '';
+    $txt .= $1 while $si =~ m{<(?:\w+:)?t\b[^>]*>(.*?)</(?:\w+:)?t>}sg;
+    push @shared, xml_unescape($txt);
+  }
+}
+
+sub col_to_num {
+  my ($ref) = @_;
+  $ref =~ s/\d+$//;
+  my $n = 0;
+  $n = $n * 26 + (ord(uc $_) - 64) for split //, $ref;
+  return $n;
+}
+
+# Parse a worksheet part into an array of rows (each row an arrayref of strings).
+sub parse_sheet {
+  my ($xml) = @_;
+  return [] unless defined $xml;
+  my @rows;
+  while ($xml =~ m{<(?:\w+:)?row\b[^>]*>(.*?)</(?:\w+:)?row>}sg) {
+    my $rowxml = $1;
+    my (%cells, $maxcol);
+    $maxcol = 0;
+    while ($rowxml =~ m{<(?:\w+:)?c\b([^>]*?)(?:/>|>(.*?)</(?:\w+:)?c>)}sg) {
+      my ($attrs, $inner) = ($1, $2);
+      $inner = '' unless defined $inner;
+      my ($ref)  = $attrs =~ /r="([A-Z]+\d+)"/;
+      my ($type) = $attrs =~ /t="([^"]+)"/;
+      next unless defined $ref;
+      my $val = '';
+      if (defined $type && $type eq 's') {
+        my ($v) = $inner =~ m{<(?:\w+:)?v>(.*?)</(?:\w+:)?v>}s;
+        $val = (defined $v && defined $shared[$v]) ? $shared[$v] : '';
+      } elsif (defined $type && $type eq 'inlineStr') {
+        my ($t) = $inner =~ m{<(?:\w+:)?t\b[^>]*>(.*?)</(?:\w+:)?t>}s;
+        $val = xml_unescape($t);
+      } else {
+        # Untyped <v> passes through raw. Schwab emits dates as shared strings
+        # (t="s"), never numFmt-styled Excel serials, so no date conversion here.
+        my ($v) = $inner =~ m{<(?:\w+:)?v>(.*?)</(?:\w+:)?v>}s;
+        $val = xml_unescape($v);
+      }
+      my $col = col_to_num($ref);
+      $cells{$col} = $val;
+      $maxcol = $col if $col > $maxcol;
+    }
+    my @row = map { defined $cells{$_} ? $cells{$_} : '' } (1 .. $maxcol);
+    push @rows, \@row;
+  }
+  return \@rows;
+}
+
+# Resolve a worksheet part filename by sheet display-name (robust to reorder).
+sub sheet_part_for {
+  my ($name_re) = @_;
+  my $wb   = member('xl/workbook.xml')            // '';
+  my $rels = member('xl/_rels/workbook.xml.rels') // '';
+  my ($rid) = $wb =~ m{<(?:\w+:)?sheet\b[^>]*\bname="([^"]*$name_re[^"]*)"[^>]*\br:id="([^"]+)"}i
+    ? ($2) : ();
+  return undef unless defined $rid;
+  my ($target) = $rels =~ m{<Relationship\b[^>]*\bId="\Q$rid\E"[^>]*\bTarget="([^"]+)"}i;
+  return undef unless defined $target;
+  $target =~ s{^/?}{};
+  $target = "xl/$target" unless $target =~ m{^xl/};
+  return $target;
+}
+
+sub csv_field {
+  my ($f) = @_;
+  $f = '' unless defined $f;
+  if ($f =~ /[",\r\n]/) { $f =~ s/"/""/g; return "\"$f\""; }
+  return $f;
+}
+sub csv_row { return join(',', map { csv_field($_) } @{ $_[0] }); }
+
+sub emit_section {
+  my ($marker, $rows) = @_;
+  print "*** $marker ***\n\n";
+  print csv_row($_), "\n" for @$rows;
+}
+
+my $espp_part = sheet_part_for('Employee Stock Purchase') // 'xl/worksheets/sheet2.xml';
+my $ea_part   = sheet_part_for('Equity Award Shares')     // 'xl/worksheets/sheet3.xml';
+
+my $espp_xml = member($espp_part)
+  // die "xlsx2csv: cannot read $espp_part from $xlsx — not a Schwab EAC export?\n";
+my $ea_xml = member($ea_part)
+  // die "xlsx2csv: cannot read $ea_part from $xlsx — not a Schwab EAC export?\n";
+
+my $espp = parse_sheet($espp_xml);
+my $ea   = parse_sheet($ea_xml);
+
+# A real EAC export always has data in at least one section. Empty output here
+# means we parsed the wrong file — fail loudly instead of emitting a hollow CSV
+# that would wipe the user's portfolio on the next sync.
+die "xlsx2csv: no data rows in either section — not a Schwab EAC export?\n"
+  if !@$espp && !@$ea;
+
+emit_section('EMPLOYEE STOCK PURCHASE PLAN SHARES', $espp);
+print "\n\n";
+emit_section('EQUITY AWARD SHARES', $ea);
+print "\nPlease exercise with caution when downloading data.\n";

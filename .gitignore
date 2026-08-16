@@ -1,0 +1,9 @@
+*.csv
+*.CSV
+# Synthetic test fixture (no personal data) — allow it through
+!tests/fixtures/expected_eac.csv
+*.app
+*.iconset/
+/samples/
+.DS_Store
+.claude/

@@ -1,0 +1,4 @@
+# shellcheck configuration
+shell=bash
+# SC2012: "Use find instead of ls" — ls -t is fine for Schwab CSV filenames
+disable=SC2012

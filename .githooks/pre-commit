@@ -1,0 +1,142 @@
+#!/bin/bash
+# Pre-commit hook: run linters and tests before allowing a commit.
+# Install: git config core.hooksPath .githooks
+
+echo "Running pre-commit checks..."
+FAILED=0
+
+# Lua linter
+if command -v luacheck &>/dev/null; then
+  echo -n "  luacheck... "
+  if luacheck extension/SchwabPortfolio.lua --quiet; then
+    echo "ok"
+  else
+    FAILED=1
+  fi
+elif [ -f "$HOME/.luarocks/bin/luacheck" ]; then
+  echo -n "  luacheck... "
+  if "$HOME/.luarocks/bin/luacheck" extension/SchwabPortfolio.lua --quiet; then
+    echo "ok"
+  else
+    FAILED=1
+  fi
+else
+  echo "  luacheck... skipped (not installed)"
+fi
+
+# Shell linter
+if command -v shellcheck &>/dev/null; then
+  echo -n "  shellcheck... "
+  if shellcheck install.sh sync.sh; then
+    echo "ok"
+  else
+    FAILED=1
+  fi
+else
+  echo "  shellcheck... skipped (not installed)"
+fi
+
+# AppleScript syntax check
+if command -v osacompile &>/dev/null; then
+  echo -n "  osacompile... "
+  TMPAPP=$(mktemp -d)/SchwabSync.app
+  if osacompile -o "$TMPAPP" shortcut/SchwabSync.applescript 2>/dev/null; then
+    echo "ok"
+    rm -rf "$(dirname "$TMPAPP")"
+  else
+    echo "FAILED"
+    FAILED=1
+    rm -rf "$(dirname "$TMPAPP")"
+  fi
+else
+  echo "  osacompile... skipped (not available)"
+fi
+
+# Perl converter syntax + golden test
+if command -v perl &>/dev/null; then
+  echo -n "  xlsx2csv... "
+  if perl -c xlsx2csv >/dev/null 2>&1 && bash tests/test_xlsx2csv.sh >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "FAILED"
+    FAILED=1
+  fi
+else
+  echo "  xlsx2csv... skipped (perl not found)"
+fi
+
+# Lua tests
+LUA=$(command -v lua5.3 || command -v lua || echo /opt/local/bin/lua)
+if [ -x "$LUA" ]; then
+  echo -n "  tests... "
+  if "$LUA" extension/SchwabPortfolio.lua 2>/dev/null; then
+    :
+  else
+    echo "FAILED"
+    FAILED=1
+  fi
+else
+  echo "  tests... skipped (lua not found)"
+fi
+
+# Secrets and personal data check
+echo -n "  secrets... "
+SECRETS_FOUND=0
+
+# Award IDs, specific prices, emails, hardcoded paths.
+# Scan ALL staged files — including the scanner files themselves. The
+# generic patterns below contain no real values, so there is nothing to
+# exclude; the old self-exclusion is exactly where real values hid.
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -n "$STAGED_FILES" ]; then
+  # Read the staged blob of each file (`git show :path`). Note: a plain
+  # `git show --staged` is not a valid command and silently yields nothing.
+  STAGED_CONTENT=$(while IFS= read -r f; do
+    git show ":$f" 2>/dev/null
+  done <<< "$STAGED_FILES")
+
+  # Any bare 6-digit number could be a real Schwab award ID. Only the
+  # designated synthetic IDs (100001, 123456) are allowed. Never list real
+  # IDs here — a blocklist of real values would itself leak them.
+  if echo "$STAGED_CONTENT" | \
+    grep -E '\b[0-9]{6}\b' | \
+    grep -vE '\b(100001|123456|000000)\b' | grep -q .; then
+    SECRETS_FOUND=1
+  fi
+
+  # 3-decimal prices are the signature of real Schwab export data. Only the
+  # designated synthetic prices (12.345, 23.456) are allowed.
+  if echo "$STAGED_CONTENT" | \
+    grep -E '\b[0-9]{1,4}\.[0-9]{3}\b' | \
+    grep -vE '\b(12\.345|23\.456)\b' | grep -q .; then
+    SECRETS_FOUND=1
+  fi
+
+  if echo "$STAGED_CONTENT" | \
+    grep -E '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' | \
+    grep -v 'noreply@anthropic\|bundesbank\.de\|example\.com' | grep -q .; then
+    SECRETS_FOUND=1
+  fi
+
+  if echo "$STAGED_CONTENT" | \
+    grep -E '/Users/[a-z]+[a-z0-9]*/' | \
+    grep -v '__HOME__\|/Users/yourname\|/Users/you\b' | grep -q .; then
+    SECRETS_FOUND=1
+  fi
+fi
+
+if [ "$SECRETS_FOUND" -eq 1 ]; then
+  echo "FAILED — possible personal data in staged changes"
+  FAILED=1
+else
+  echo "ok"
+fi
+
+if [ "$FAILED" -eq 1 ]; then
+  echo ""
+  echo "Pre-commit checks failed. Fix the issues above before committing."
+  exit 1
+fi
+
+echo "All checks passed."

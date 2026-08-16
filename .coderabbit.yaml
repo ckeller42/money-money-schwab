@@ -1,0 +1,35 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/reference/configuration
+language: "en-US"
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  auto_review:
+    enabled: true
+  tools:
+    shellcheck:
+      enabled: true
+    luacheck:
+      enabled: true
+  path_instructions:
+    - path: "extension/**"
+      instructions: |
+        MoneyMoney Web Banking extension (Lua 5.3) running in a sandbox:
+        io.popen is blocked, no zlib, file access restricted. Do not suggest
+        os.execute/io.popen or external libraries. The inline self-tests at the
+        bottom of the file must keep passing (run via `lua extension/SchwabPortfolio.lua`).
+    - path: "xlsx2csv"
+      instructions: |
+        Perl converter that must stay core-module only (IO::Uncompress::Unzip);
+        no CPAN dependencies — it runs on stock macOS perl and ubuntu-latest.
+        It must fail loudly (die, non-zero exit) on malformed input rather than
+        emitting empty output.
+    - path: "tests/**"
+      instructions: |
+        All fixtures MUST be synthetic (ACME symbol, award id 100001, round
+        numbers). Flag anything that looks like real Schwab data: 6-digit award
+        IDs other than 100001, realistic prices, e-mail addresses, or
+        /Users/<name>/ paths.
+    - path: "*.sh"
+      instructions: |
+        Scripts sync data into MoneyMoney's sandbox. A failed conversion or
+        validation must never replace the known-good target CSV.
