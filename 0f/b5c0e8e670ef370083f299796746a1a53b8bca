@@ -1,0 +1,53 @@
+.githooks/pre-commit
+  s_f569765babcc3f::t_7040c60727b0a7 86-90
+  s_f569765babcc3f::t_0b2f03c1a966f5 93-97
+  s_f569765babcc3f::t_4fc91476245fb2 83-85
+  s_f569765babcc3f::t_6ce8abf666ec12 91-92
+  s_f569765babcc3f::t_0e0229e52a8043 98-100
+  s_f569765babcc3f::t_65e8ddfed9450a 1-82,101-142
+.github/workflows/ci.yml
+  s_f569765babcc3f::t_af1d6b3a068884 40-71
+  s_a7757c7c919f20::t_3e2618126da507 1-39,72-81
+.coderabbit.yaml
+  s_f569765babcc3f::t_fb9504b388a5b7 1-35
+README.md
+  s_f569765babcc3f::t_c4f5b19725a3f7 1-200
+extension/SchwabPortfolio.lua
+  s_f569765babcc3f::t_d22bd773759907 1-970
+shortcut/SchwabSync.applescript
+  s_f569765babcc3f::t_2d1a566e009cfb 1-56
+sync.sh
+  s_f569765babcc3f::t_5666f72700af1e 1-112
+tests/test_xlsx2csv.sh
+  s_f569765babcc3f::t_3ea1e1f0a2261f 1-26
+xlsx2csv
+  s_f569765babcc3f::t_bfa836eda10db0 1-133
+.gitignore
+  s_f569765babcc3f::t_9ea59d62f76761 1-9
+tests/fixtures/expected_eac.csv
+  s_f569765babcc3f::t_4e523120d7e40b 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0fb5c0e8e670ef370083f299796746a1a53b8bca",
+  "prompts": {},
+  "sessions": {
+    "s_a7757c7c919f20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cabeef98-4812-480e-afab-74a58bcc255b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Christoph Keller <christoph.keller@gmx.net>"
+    },
+    "s_f569765babcc3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "366e1b78-26f3-43bc-a378-1e459f776eb7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Christoph Keller <christoph.keller@gmx.net>"
+    }
+  }
+}
