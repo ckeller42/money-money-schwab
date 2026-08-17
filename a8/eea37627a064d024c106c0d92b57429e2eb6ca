@@ -1,0 +1,19 @@
+README.md
+  s_f569765babcc3f::t_0f97fc081f860c 201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a8eea37627a064d024c106c0d92b57429e2eb6ca",
+  "prompts": {},
+  "sessions": {
+    "s_f569765babcc3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "366e1b78-26f3-43bc-a378-1e459f776eb7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Christoph Keller <christoph.keller@gmx.net>"
+    }
+  }
+}
