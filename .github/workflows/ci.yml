@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -22,7 +29,7 @@ jobs:
         run: luacheck extension/SchwabPortfolio.lua
 
       - name: Run shellcheck
-        run: shellcheck install.sh sync.sh
+        run: shellcheck install.sh sync.sh tests/test_xlsx2csv.sh
 
       - name: Run tests
         run: lua5.3 extension/SchwabPortfolio.lua

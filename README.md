@@ -197,6 +197,13 @@ If any check fails, the commit is blocked.
 # Then restart MoneyMoney to pick up the new extension
 ```
 
+## Contributing
+
+`main` is protected: changes land via pull request only, CI must pass, and all
+review conversations (including CodeRabbit's) must be resolved before merge.
+Run `git config core.hooksPath .githooks` once so the pre-commit hook mirrors CI.
+Test data must stay synthetic — see `CLAUDE.md`.
+
 ## License
 
 MIT

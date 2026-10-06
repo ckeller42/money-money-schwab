@@ -27,7 +27,7 @@ fi
 # Shell linter
 if command -v shellcheck &>/dev/null; then
   echo -n "  shellcheck... "
-  if shellcheck install.sh sync.sh; then
+  if shellcheck install.sh sync.sh tests/test_xlsx2csv.sh; then
     echo "ok"
   else
     FAILED=1

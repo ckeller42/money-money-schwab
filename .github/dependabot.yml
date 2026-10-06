@@ -1,0 +1,7 @@
+# Keep pinned GitHub Actions current. No package manager in this repo
+# (Lua/Perl/shell only), so actions are the only ecosystem.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
