@@ -40,7 +40,7 @@ validate_csv() {
 
   if [ -n "$errors" ]; then
     echo "✗ CSV validation failed: $errors"
-    osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null
+    osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null || true
     return 1
   fi
 }
@@ -53,7 +53,7 @@ validate_csv() {
 # Accessibility permission is missing.
 refresh_moneymoney() {
   if ! pgrep -xq MoneyMoney; then
-    osascript -e 'display notification "Synced. Open MoneyMoney and refresh (⌘R)." with title "Schwab Sync"' 2>/dev/null
+    osascript -e 'display notification "Synced. Open MoneyMoney and refresh (⌘R)." with title "Schwab Sync"' 2>/dev/null || true
     return
   fi
   if osascript <<'APPLESCRIPT' 2>/dev/null
@@ -70,9 +70,9 @@ tell application "System Events" to tell process "MoneyMoney"
 end tell
 APPLESCRIPT
   then
-    osascript -e 'display notification "Synced. Accounts are refreshing." with title "Schwab Sync"' 2>/dev/null
+    osascript -e 'display notification "Synced. Accounts are refreshing." with title "Schwab Sync"' 2>/dev/null || true
   else
-    osascript -e 'display notification "Synced. Refresh MoneyMoney manually (⌘R)." with title "Schwab Sync"' 2>/dev/null
+    osascript -e 'display notification "Synced. Refresh MoneyMoney manually (⌘R)." with title "Schwab Sync"' 2>/dev/null || true
   fi
 }
 
