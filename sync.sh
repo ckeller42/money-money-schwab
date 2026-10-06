@@ -40,8 +40,39 @@ validate_csv() {
 
   if [ -n "$errors" ]; then
     echo "✗ CSV validation failed: $errors"
-    osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null
+    osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null || true
     return 1
+  fi
+}
+
+# Trigger a MoneyMoney refresh so it re-reads the just-synced CSV. MoneyMoney
+# only re-reads the file on an account refresh, and its AppleScript dictionary
+# has no refresh command — so click the first item of the Ablage/File menu
+# ("Alle Konten aktualisieren") via System Events, same as SchwabSync.app.
+# Degrades to a "refresh manually" notification if MoneyMoney isn't running or
+# Accessibility permission is missing.
+refresh_moneymoney() {
+  if ! pgrep -xq MoneyMoney; then
+    osascript -e 'display notification "Synced. Open MoneyMoney and refresh (⌘R)." with title "Schwab Sync"' 2>/dev/null || true
+    return
+  fi
+  if osascript <<'APPLESCRIPT' 2>/dev/null
+tell application "MoneyMoney" to activate
+delay 1
+tell application "System Events" to tell process "MoneyMoney"
+  repeat with menuName in {"Ablage", "File"}
+    try
+      click menu item 1 of menu 1 of menu bar item (menuName as text) of menu bar 1
+      return
+    end try
+  end repeat
+  error "menu not found"
+end tell
+APPLESCRIPT
+  then
+    osascript -e 'display notification "Synced. Accounts are refreshing." with title "Schwab Sync"' 2>/dev/null || true
+  else
+    osascript -e 'display notification "Synced. Refresh MoneyMoney manually (⌘R)." with title "Schwab Sync"' 2>/dev/null || true
   fi
 }
 
@@ -78,6 +109,7 @@ if [ "$1" = "--from-staging" ]; then
   else
     mv "$TMP_CSV" "$TARGET"
     echo "✓ Synced from staging"
+    refresh_moneymoney
   fi
 else
   EAC=$(ls -t "$HOME/Downloads"/EquityAwardsCenter*.xlsx 2>/dev/null | head -1)
@@ -107,6 +139,6 @@ else
   else
     mv "$TMP_CSV" "$TARGET"
     echo "✓ Synced: $(basename "$EAC")"
-    osascript -e 'display notification "Schwab EAC data synced. Refresh MoneyMoney." with title "Schwab Sync"' 2>/dev/null
+    refresh_moneymoney
   fi
 fi

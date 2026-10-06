@@ -63,9 +63,11 @@ Open **SchwabSync** from Applications or Spotlight. It will:
 ```bash
 # Download Equity Details .xlsx from Schwab EAC, then:
 schwab-sync
-
-# Refresh the Schwab account in MoneyMoney (Cmd+R)
 ```
+
+`schwab-sync` converts the newest export, syncs it, and triggers a
+MoneyMoney refresh automatically (needs Accessibility permission for
+your terminal; otherwise it notifies you to refresh with ⌘R).
 
 ### Why is there a sync step?
 
@@ -194,6 +196,13 @@ If any check fails, the commit is blocked.
 ./install.sh
 # Then restart MoneyMoney to pick up the new extension
 ```
+
+## Contributing
+
+`main` is protected: changes land via pull request only, CI must pass, and all
+review conversations (including CodeRabbit's) must be resolved before merge.
+Run `git config core.hooksPath .githooks` once so the pre-commit hook mirrors CI.
+Test data must stay synthetic — see `CLAUDE.md`.
 
 ## License
 
