@@ -12,7 +12,7 @@
 ## Privacy (public repo)
 - Fixtures and docs must be synthetic: ACME, award IDs 100001/123456, prices 12.345/23.456. Scanners reject any other 6-digit number or 3-decimal price.
 - Never add real values to a scanner blocklist — that leaks them. Never commit real exports, screenshots, or balances.
-- GitHub secret scanning + push protection are on: pushes containing provider tokens (API keys etc.) are rejected. They don't know Schwab data formats — the custom scanner (pre-commit + CI) still covers award IDs, prices, emails, and `/Users/` paths.
+- GitHub secret scanning + push protection are enabled (repo settings). Push protection blocks only the subset of supported provider token types GitHub marks push-protected; scanning alerts cover more. No custom patterns are configured, so neither knows Schwab data formats — the custom scanner (pre-commit + CI) is the only guard for award IDs, prices, emails, and `/Users/` paths.
 
 ## Gotchas
 - MoneyMoney re-reads `schwab_eac.csv` only on account refresh; `sync.sh` triggers one via a System Events menu-click (no refresh command in its AppleScript dictionary). Needs Accessibility permission.
