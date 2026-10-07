@@ -1,137 +1,88 @@
 #!/bin/bash
 # Pre-commit hook: run linters and tests before allowing a commit.
 # Install: git config core.hooksPath .githooks
+#
+# A missing tool is never silent: it prints "SKIPPED: <tool> not installed".
+# Locally that is a warning (exit 0); with CI_STRICT=1 it fails the commit.
 
 echo "Running pre-commit checks..."
 FAILED=0
 
+# skipped TOOL [REASON]: report a missing tool loudly; fail under CI_STRICT=1.
+skipped() {
+  echo "  SKIPPED: $1 ${2:-not installed}"
+  if [ "${CI_STRICT:-0}" = "1" ]; then
+    echo "  CI_STRICT=1: a skipped check is a failure"
+    FAILED=1
+  fi
+}
+
+# run LABEL CMD...: run a check, show its output only when it fails.
+run() {
+  local label=$1 out
+  shift
+  echo -n "  $label... "
+  if out=$("$@" 2>&1); then
+    echo "ok"
+  else
+    echo "FAILED"
+    printf '%s\n' "$out"
+    FAILED=1
+  fi
+}
+
 # Lua linter
 if command -v luacheck &>/dev/null; then
-  echo -n "  luacheck... "
-  if luacheck extension/SchwabPortfolio.lua --quiet; then
-    echo "ok"
-  else
-    FAILED=1
-  fi
-elif [ -f "$HOME/.luarocks/bin/luacheck" ]; then
-  echo -n "  luacheck... "
-  if "$HOME/.luarocks/bin/luacheck" extension/SchwabPortfolio.lua --quiet; then
-    echo "ok"
-  else
-    FAILED=1
-  fi
+  run luacheck luacheck extension/SchwabPortfolio.lua --quiet
+elif [ -x "$HOME/.luarocks/bin/luacheck" ]; then
+  run luacheck "$HOME/.luarocks/bin/luacheck" extension/SchwabPortfolio.lua --quiet
 else
-  echo "  luacheck... skipped (not installed)"
+  skipped luacheck
 fi
 
 # Shell linter
 if command -v shellcheck &>/dev/null; then
-  echo -n "  shellcheck... "
-  if shellcheck install.sh sync.sh tests/test_xlsx2csv.sh; then
-    echo "ok"
-  else
-    FAILED=1
-  fi
+  run shellcheck shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
+    tests/test_check_personal_data.sh tools/check_personal_data.sh
 else
-  echo "  shellcheck... skipped (not installed)"
+  skipped shellcheck
 fi
 
-# AppleScript syntax check
+# AppleScript syntax check (macOS only)
 if command -v osacompile &>/dev/null; then
-  echo -n "  osacompile... "
-  TMPAPP=$(mktemp -d)/SchwabSync.app
-  if osacompile -o "$TMPAPP" shortcut/SchwabSync.applescript 2>/dev/null; then
-    echo "ok"
-    rm -rf "$(dirname "$TMPAPP")"
-  else
-    echo "FAILED"
-    FAILED=1
-    rm -rf "$(dirname "$TMPAPP")"
-  fi
+  TMPDIR_APP=$(mktemp -d)
+  run osacompile osacompile -o "$TMPDIR_APP/SchwabSync.app" shortcut/SchwabSync.applescript
+  rm -rf "$TMPDIR_APP"
 else
-  echo "  osacompile... skipped (not available)"
+  skipped osacompile "not available (macOS only)"
 fi
 
 # Perl converter syntax + golden test
 if command -v perl &>/dev/null; then
-  echo -n "  xlsx2csv... "
-  if perl -c xlsx2csv >/dev/null 2>&1 && bash tests/test_xlsx2csv.sh >/dev/null 2>&1; then
-    echo "ok"
-  else
-    echo "FAILED"
-    FAILED=1
-  fi
+  run xlsx2csv bash -c 'perl -c xlsx2csv && bash tests/test_xlsx2csv.sh'
 else
-  echo "  xlsx2csv... skipped (perl not found)"
+  skipped perl
 fi
 
 # Lua tests
 LUA=$(command -v lua5.3 || command -v lua || echo /opt/local/bin/lua)
 if [ -x "$LUA" ]; then
-  echo -n "  tests... "
-  if "$LUA" extension/SchwabPortfolio.lua 2>/dev/null; then
-    :
-  else
-    echo "FAILED"
-    FAILED=1
-  fi
+  run tests "$LUA" extension/SchwabPortfolio.lua
 else
-  echo "  tests... skipped (lua not found)"
+  skipped lua
 fi
 
-# Secrets and personal data check
+# Secrets and personal data check: the same script CI runs, over the staged
+# blobs. On a hit it prints file:line and the rule, never the value.
 echo -n "  secrets... "
-SECRETS_FOUND=0
-
-# Award IDs, specific prices, emails, hardcoded paths.
-# Scan ALL staged files — including the scanner files themselves. The
-# generic patterns below contain no real values, so there is nothing to
-# exclude; the old self-exclusion is exactly where real values hid.
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
-
-if [ -n "$STAGED_FILES" ]; then
-  # Read the staged blob of each file (`git show :path`). Note: a plain
-  # `git show --staged` is not a valid command and silently yields nothing.
-  STAGED_CONTENT=$(while IFS= read -r f; do
-    git show ":$f" 2>/dev/null
-  done <<< "$STAGED_FILES")
-
-  # Any bare 6-digit number could be a real Schwab award ID. Only the
-  # designated synthetic IDs (100001, 123456) are allowed. Never list real
-  # IDs here — a blocklist of real values would itself leak them.
-  if echo "$STAGED_CONTENT" | \
-    grep -E '\b[0-9]{6}\b' | \
-    grep -vE '\b(100001|123456|000000)\b' | grep -q .; then
-    SECRETS_FOUND=1
-  fi
-
-  # 3-decimal prices are the signature of real Schwab export data. Only the
-  # designated synthetic prices (12.345, 23.456) are allowed.
-  if echo "$STAGED_CONTENT" | \
-    grep -E '\b[0-9]{1,4}\.[0-9]{3}\b' | \
-    grep -vE '\b(12\.345|23\.456)\b' | grep -q .; then
-    SECRETS_FOUND=1
-  fi
-
-  if echo "$STAGED_CONTENT" | \
-    grep -E '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' | \
-    grep -v 'noreply@anthropic\|bundesbank\.de\|example\.com' | grep -q .; then
-    SECRETS_FOUND=1
-  fi
-
-  if echo "$STAGED_CONTENT" | \
-    grep -E '/Users/[a-z]+[a-z0-9]*/' | \
-    grep -v '__HOME__\|/Users/yourname\|/Users/you\b' | grep -q .; then
-    SECRETS_FOUND=1
-  fi
-fi
-
-if [ "$SECRETS_FOUND" -eq 1 ]; then
-  echo "FAILED — possible personal data in staged changes"
-  FAILED=1
-else
+if scan_out=$(tools/check_personal_data.sh --staged 2>&1); then
   echo "ok"
+else
+  echo "FAILED (possible personal data in staged changes)"
+  printf '%s\n' "$scan_out"
+  FAILED=1
 fi
+run "scanner test" bash tests/test_check_personal_data.sh
 
 if [ "$FAILED" -eq 1 ]; then
   echo ""

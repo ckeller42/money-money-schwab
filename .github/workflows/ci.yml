@@ -11,13 +11,17 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main; only superseded PR runs.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install dependencies
         run: |
@@ -29,7 +33,8 @@ jobs:
         run: luacheck extension/SchwabPortfolio.lua
 
       - name: Run shellcheck
-        run: shellcheck install.sh sync.sh tests/test_xlsx2csv.sh
+        run: shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
+            tests/test_check_personal_data.sh tools/check_personal_data.sh
 
       - name: Run tests
         run: lua5.3 extension/SchwabPortfolio.lua
@@ -39,50 +44,12 @@ jobs:
           perl -c xlsx2csv
           bash tests/test_xlsx2csv.sh
 
+      - name: Run personal-data scanner test
+        run: bash tests/test_check_personal_data.sh
+
+      # Scans EVERY tracked text file (binaries are skipped), no file-type or
+      # scanner-file exclusions. The logic lives in one script shared with the
+      # pre-commit hook; on a hit it prints file:line and the rule, never the
+      # matched value (this log is public).
       - name: Check for secrets and personal data
-        run: |
-          echo "Scanning for personal data patterns..."
-          FOUND=0
-
-          # Scan EVERY tracked text file (grep -I skips binaries) — no
-          # file-type or scanner-file exclusions. The old scanner only
-          # covered 4 extensions and excluded itself, which is exactly
-          # where real values ended up hiding.
-          FILES=$(git ls-files)
-
-          # Any bare 6-digit number could be a real Schwab award ID. Only the
-          # designated synthetic IDs (100001, 123456) are allowed. Never list
-          # real IDs here — a blocklist of real values would itself leak them.
-          if echo "$FILES" | xargs grep -InE '\b[0-9]{6}\b' /dev/null \
-            | grep -vE '\b(100001|123456|000000)\b'; then
-            echo "::error::Found a 6-digit number that could be a real Schwab award ID"
-            FOUND=1
-          fi
-
-          # 3-decimal prices are the signature of real Schwab export data.
-          # Only the designated synthetic prices (12.345, 23.456) are allowed.
-          if echo "$FILES" | xargs grep -InE '\b[0-9]{1,4}\.[0-9]{3}\b' /dev/null \
-            | grep -vE '\b(12\.345|23\.456)\b'; then
-            echo "::error::Found a 3-decimal price that could be real Schwab export data"
-            FOUND=1
-          fi
-
-          # Email addresses (except known safe ones)
-          if echo "$FILES" | xargs grep -InE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' /dev/null \
-            | grep -v 'noreply@anthropic\|users\.noreply\.github\.com\|bundesbank\.de\|example\.com'; then
-            echo "::error::Found email addresses"
-            FOUND=1
-          fi
-
-          # Home directory paths with real usernames
-          if echo "$FILES" | xargs grep -InE '/Users/[a-z]+[a-z0-9]*/' /dev/null \
-            | grep -v '__HOME__\|/Users/yourname\|/Users/you\b'; then
-            echo "::error::Found hardcoded home directory paths"
-            FOUND=1
-          fi
-
-          if [ "$FOUND" -eq 1 ]; then
-            echo "Secret/personal data check failed. Review the matches above."
-            exit 1
-          fi
-          echo "No secrets or personal data found."
+        run: git ls-files | tools/check_personal_data.sh
