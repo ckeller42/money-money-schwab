@@ -22,7 +22,7 @@ jobs:
     # never drive a Claude run in this repo).
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]'
+      github.event.pull_request.user.login != 'dependabot[bot]'
     # Optional: Filter by PR author
     # (extra author filter, combine with the condition above)
     # if: |
