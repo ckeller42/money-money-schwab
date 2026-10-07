@@ -33,7 +33,8 @@ jobs:
         run: luacheck extension/SchwabPortfolio.lua
 
       - name: Run shellcheck
-        run: shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
+        run: |
+          shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
             tests/test_check_personal_data.sh tools/check_personal_data.sh
 
       - name: Run tests
