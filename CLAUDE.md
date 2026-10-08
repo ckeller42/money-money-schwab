@@ -19,3 +19,7 @@
 - MoneyMoney re-reads `schwab_eac.csv` only on account refresh; `sync.sh` triggers one via a System Events menu-click (no refresh command in its AppleScript dictionary). Needs Accessibility permission.
 - MoneyMoney sandbox: no `io.popen`, no zlib — the `.xlsx` is converted outside the sandbox by `xlsx2csv` (core Perl only, no CPAN).
 - Real Schwab exports live in `~/Downloads` and the MoneyMoney container — never copy them into the repo or scratch output that gets committed.
+
+## Dependabot
+
+`.github/workflows/dependabot-auto-merge.yml` squash-merges a Dependabot PR once CI has passed on its exact head commit, but only when no bumped dependency is a semver major (it reads the `update-type` trailers; a grouped PR waits if any member is major). It does not rely on the repo's "Allow auto-merge" setting. Major bumps and anything CI rejects stay open for review.
