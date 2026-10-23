@@ -42,6 +42,12 @@ on error e number n
 	try
 		close access xlsxFile
 	end try
+	try
+		close access (POSIX file stagingFile)
+	end try
+	try
+		do shell script "rm -rf " & quoted form of stagingDir
+	end try
 	display dialog "Could not read the selected file: " & e & " (" & n & ")" buttons {"OK"} default button 1 with icon stop with title "Schwab Sync"
 	return
 end try
