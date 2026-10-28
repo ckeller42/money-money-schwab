@@ -107,7 +107,11 @@ if [ "$1" = "--from-staging" ]; then
     rm -f "$TMP_CSV"
     echo "Already up to date"
   else
-    mv "$TMP_CSV" "$TARGET"
+    if ! mv "$TMP_CSV" "$TARGET"; then
+      rm -f "$TMP_CSV"
+      echo "✗ Failed to replace target CSV"
+      exit 1
+    fi
     echo "✓ Synced from staging"
     refresh_moneymoney
   fi
@@ -137,7 +141,11 @@ else
     rm -f "$TMP_CSV"
     echo "Already up to date: $(basename "$EAC")"
   else
-    mv "$TMP_CSV" "$TARGET"
+    if ! mv "$TMP_CSV" "$TARGET"; then
+      rm -f "$TMP_CSV"
+      echo "✗ Failed to replace target CSV"
+      exit 1
+    fi
     echo "✓ Synced: $(basename "$EAC")"
     refresh_moneymoney
   fi
