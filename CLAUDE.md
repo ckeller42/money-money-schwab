@@ -18,6 +18,7 @@
 ## Gotchas
 - MoneyMoney re-reads `schwab_eac.csv` only on account refresh; `sync.sh` triggers one via a System Events menu-click (no refresh command in its AppleScript dictionary). Needs Accessibility permission.
 - MoneyMoney sandbox: no `io.popen`, no zlib — the `.xlsx` is converted outside the sandbox by `xlsx2csv` (core Perl only, no CPAN).
+- Second TCC wall: writing the CSV into MoneyMoney's container (`~/Library/Containers/com.moneymoney-app.retail/Data/…`) needs a TCC grant ("data from other apps" / Full Disk Access). An ad-hoc app's grant is keyed to its cdhash and is lost on every rebuild, so `install.sh` signs SchwabSync.app with a stable self-signed identity (`io.github.ckeller42.schwabsync`, cert CN `SchwabSync Signing`, created once in the login keychain) — the designated requirement is then cdhash-independent and the grant survives reinstalls. Terminal/`schwab-sync` works without this because Terminal already holds the grant.
 - Real Schwab exports live in `~/Downloads` and the MoneyMoney container — never copy them into the repo or scratch output that gets committed.
 
 ## Dependabot

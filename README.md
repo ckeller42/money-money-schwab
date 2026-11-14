@@ -58,6 +58,13 @@ Open **SchwabSync** from Applications or Spotlight. It will:
    (requires Accessibility permission for SchwabSync; falls back to a
    "refresh manually" notification without it)
 
+On the **first run**, macOS may ask to let SchwabSync access "data from other
+apps" — allow it, so SchwabSync can write the synced CSV into MoneyMoney's
+container. If no prompt appears, grant it under System Settings → Privacy &
+Security → **Full Disk Access**. `install.sh` signs SchwabSync.app with a stable
+self-signed identity, so this grant survives future reinstalls (an unsigned app
+loses it on every rebuild). Every step is logged to `~/Library/Logs/SchwabSync.log`.
+
 ### Option B: Terminal
 
 ```bash
