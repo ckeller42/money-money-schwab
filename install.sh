@@ -51,7 +51,7 @@ ensure_signing_identity() {
     return 0
   fi
   echo "Creating a self-signed code-signing identity '$SIGN_CN' in your login keychain…"
-  local tmp; tmp=$(mktemp -d)
+  local tmp p12pass; tmp=$(mktemp -d); p12pass=$(openssl rand -hex 16)
   # LibreSSL (the macOS openssl) needs the code-signing EKU in a config file.
   cat > "$tmp/req.cnf" <<EOF
 [req]
@@ -69,10 +69,14 @@ EOF
         -keyout "$tmp/key.pem" -out "$tmp/cert.pem" -days 3650 \
         -config "$tmp/req.cnf" >/dev/null 2>&1 &&
      openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" \
-        -out "$tmp/id.p12" -passout pass:schwabsync -name "$SIGN_CN" >/dev/null 2>&1 &&
-     security import "$tmp/id.p12" -P schwabsync -T /usr/bin/codesign >/dev/null 2>&1; then
+        -out "$tmp/id.p12" -passout "pass:$p12pass" -name "$SIGN_CN" >/dev/null 2>&1 &&
+     security import "$tmp/id.p12" -P "$p12pass" -x >/dev/null 2>&1; then
     rm -rf "$tmp"
-    echo "  On the first signing, macOS asks to let codesign use the key — click \"Always Allow\" (once)."
+    # Deliberately NOT pre-authorized (-T) and imported non-extractable (-x):
+    # each codesign use prompts, so no other same-user process can silently
+    # re-sign a tampered bundle with this identity and keep the TCC grant.
+    echo "  macOS will ask to let codesign use the key — click \"Allow\" (NOT \"Always Allow\")."
+    echo "  It asks again on each ./install.sh; that is intended, so the key can't be used silently."
     return 0
   fi
   rm -rf "$tmp"
