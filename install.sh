@@ -86,23 +86,25 @@ EOF
 APPLESCRIPT="$SCRIPT_DIR/shortcut/SchwabSync.applescript"
 if [ -f "$APPLESCRIPT" ]; then
   mkdir -p "$APP_DIR"
-  PATCHED=$(mktemp)
-  sed -e "s|__SYNC_SCRIPT__|$SCRIPT_DIR/sync.sh|g" \
-      -e "s|__DATA_DIR__|$DATA_DIR|g" "$APPLESCRIPT" > "$PATCHED"
-  if osacompile -o "$APP_DIR/SchwabSync.app" "$PATCHED" 2>/dev/null; then
-    rm "$PATCHED"
+  if osacompile -o "$APP_DIR/SchwabSync.app" "$APPLESCRIPT" 2>/dev/null; then
+    APP="$APP_DIR/SchwabSync.app"
     ICNS="$SCRIPT_DIR/shortcut/SchwabSync.icns"
     if [ -f "$ICNS" ]; then
-      cp "$ICNS" "$APP_DIR/SchwabSync.app/Contents/Resources/applet.icns"
-      rm -f "$APP_DIR/SchwabSync.app/Contents/Resources/Assets.car"
+      cp "$ICNS" "$APP/Contents/Resources/applet.icns"
+      rm -f "$APP/Contents/Resources/Assets.car"
       /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" \
-        "$APP_DIR/SchwabSync.app/Contents/Info.plist" 2>/dev/null || true
-      touch "$APP_DIR/SchwabSync.app"
+        "$APP/Contents/Info.plist" 2>/dev/null || true
+      touch "$APP"
     fi
+    # Bundle the sync script and converter INSIDE the app, so the app runs its
+    # own signed copies instead of user-writable scripts from the checkout — a
+    # tampered external script would otherwise inherit the app's file-access
+    # grant. The applet resolves Contents/Resources/sync.sh at runtime.
+    cp "$SCRIPT_DIR/sync.sh" "$SCRIPT_DIR/xlsx2csv" "$APP/Contents/Resources/"
+    chmod +x "$APP/Contents/Resources/sync.sh" "$APP/Contents/Resources/xlsx2csv"
     # Give the bundle a stable identity (readable name in the Full Disk Access
     # list, stable TCC requirement), then sign — signing must be LAST, after all
     # Info.plist and Resources edits, or it invalidates the signature.
-    APP="$APP_DIR/SchwabSync.app"
     plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
     plutil -replace CFBundleName       -string "SchwabSync" "$APP/Contents/Info.plist"
     if ensure_signing_identity && \
@@ -114,7 +116,6 @@ if [ -f "$APPLESCRIPT" ]; then
       echo "✓ SchwabSync.app installed to $APP_DIR (unsigned — see note below)"
     fi
   else
-    rm "$PATCHED"
     echo "– SchwabSync.app: could not compile (osacompile not available?)"
     echo "  You can run sync.sh manually instead."
   fi
