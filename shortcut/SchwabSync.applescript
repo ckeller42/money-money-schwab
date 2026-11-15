@@ -78,11 +78,25 @@ on error e number n
 	return
 end try
 
--- Step 5: Sync from staging. sync.sh converts, validates, replaces the CSV and
--- refreshes MoneyMoney. Its own notifications are invisible from this app, so
--- every outcome is shown as a dialog here instead.
+-- Step 5: Verify our own signature, then run the BUNDLED sync script.
+-- This app holds a file-access grant (to write MoneyMoney's container). Running
+-- a user-writable script with that grant would let a tampered script inherit
+-- it. The sync script and converter are shipped inside this signed bundle; the
+-- check below refuses to run if the bundle (the bundled sync.sh included) was
+-- modified, and the grant is keyed to our signing identity, so a re-signed copy
+-- loses it. install.sh patches nothing here — the path is resolved at runtime.
+set selfPath to POSIX path of (path to me)
 try
-	set syncOutput to do shell script "__SYNC_SCRIPT__ --from-staging " & quoted form of stagingFile
+	do shell script "codesign --verify --strict " & quoted form of selfPath
+on error
+	logStep("Integrity check failed — refusing to run")
+	display dialog "SchwabSync's signature is invalid, so it will not run. This protects your data. Reinstall with ./install.sh." buttons {"OK"} default button 1 with icon stop with title "Schwab Sync"
+	return
+end try
+set syncScript to selfPath & "Contents/Resources/sync.sh"
+logStep("Running bundled sync: " & syncScript)
+try
+	set syncOutput to do shell script quoted form of syncScript & " --from-staging " & quoted form of stagingFile
 on error e number n
 	logStep("Sync FAILED (" & n & "): " & e)
 	display dialog "Sync failed:" & return & return & e buttons {"OK"} default button 1 with icon stop with title "Schwab Sync"
