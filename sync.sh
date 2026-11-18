@@ -109,8 +109,10 @@ sync_xlsx() {
 
 # newest_recent_export MINUTES: newest EquityAwardsCenter*.xlsx in
 # ~/Downloads modified within MINUTES minutes; prints nothing if none.
+# Zero-byte files are skipped: Firefox creates an empty placeholder at the
+# final name before the download completes.
 newest_recent_export() {
-  find "$HOME/Downloads" -maxdepth 1 -name 'EquityAwardsCenter*.xlsx' -mmin "-$1" \
+  find "$HOME/Downloads" -maxdepth 1 -name 'EquityAwardsCenter*.xlsx' -size +0c -mmin "-$1" \
     -exec ls -t {} + 2>/dev/null | head -1
 }
 
@@ -136,7 +138,7 @@ elif [ -n "$1" ]; then
   exit 2
 fi
 
-EAC=$(ls -t "$HOME/Downloads"/EquityAwardsCenter*.xlsx 2>/dev/null | head -1)
+EAC="$(newest_recent_export 99999999)"
 if [ -z "$EAC" ]; then
   echo "No EquityAwardsCenter .xlsx found in ~/Downloads"
   exit 1

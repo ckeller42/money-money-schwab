@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 EXTENSION_DIR="$HOME/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions"
 DATA_DIR="$EXTENSION_DIR/SchwabData"
-# Prefer /Applications (shows in Launchpad), fall back to ~/Applications
+# Prefer /Applications (findable via Spotlight), fall back to ~/Applications
 APP_DIR="/Applications"
 if [ ! -w "$APP_DIR" ]; then
   APP_DIR="$HOME/Applications"

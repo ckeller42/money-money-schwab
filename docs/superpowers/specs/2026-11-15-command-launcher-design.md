@@ -54,7 +54,9 @@ Settings can fix it.
   `EquityAwardsCenter*.xlsx` in `~/Downloads`. A file modified in the last
   10 minutes counts at once; otherwise poll until one appears (timeout
   15 minutes). Browsers write the final `.xlsx` name only when the download
-  is complete, so the glob never sees a partial file. Then run the same
+  is complete, so the glob never sees a partial file. Firefox may first create
+  a 0-byte placeholder at the final name; `newest_recent_export` skips
+  zero-byte files so the wait is not ended early by a placeholder. Then run the same
   convert / validate / compare / move / refresh logic as the other mode.
 - `sync.sh` with no arguments keeps today's behavior (newest export in
   Downloads, no waiting).

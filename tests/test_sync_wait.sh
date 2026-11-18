@@ -41,7 +41,8 @@ target_is_expected() { [ "$(cat "$TARGET")" = "$EXPECTED" ]; }
 out_has() { case "$OUT" in *"$1"*) return 0 ;; *) return 1 ;; esac; }
 ok_and_synced() { [ "$RC" -eq 0 ] && out_has "✓ Synced" && target_is_expected; }
 ok_and_current() { [ "$RC" -eq 0 ] && out_has "Already up to date"; }
-failed_keeps_target() { [ "$RC" -ne 0 ] && target_is_expected; }
+failed_keeps_target() { [ "$RC" -ne 0 ] && target_is_expected && [ "$(cksum < "$TARGET")" = "$GOOD_SUM" ]; }
+synced_real() { [ "$RC" -eq 0 ] && out_has "EquityAwardsCenter_real.xlsx" && ! out_has "placeholder" && target_is_expected; }
 synced_new() { [ "$RC" -eq 0 ] && out_has "EquityAwardsCenter_new.xlsx"; }
 timed_out() { [ "$RC" -ne 0 ] && out_has "No new EquityAwardsCenter" && [ ! -e "$TARGET" ]; }
 
@@ -53,6 +54,7 @@ check recent_file_synced_immediately ok_and_synced
 run_sync
 check second_run_up_to_date ok_and_current
 
+GOOD_SUM="$(cksum < "$TARGET")"
 printf garbage > "$HOME/Downloads/EquityAwardsCenter_EquityDetails_test.xlsx"
 run_sync
 check bad_export_keeps_target failed_keeps_target
@@ -65,6 +67,14 @@ touch -t 200001010000 "$HOME/Downloads/EquityAwardsCenter_old.xlsx"
 SCHWAB_SYNC_WAIT_SECS=20 run_sync
 wait
 check old_file_is_ignored_then_new_one_synced synced_new
+
+new_home
+: > "$HOME/Downloads/EquityAwardsCenter_placeholder.xlsx"
+(sleep 3 && cp "$FIXTURE" "$HOME/Downloads/.real.tmp" \
+  && mv "$HOME/Downloads/.real.tmp" "$HOME/Downloads/EquityAwardsCenter_real.xlsx") &
+SCHWAB_SYNC_WAIT_SECS=20 run_sync
+wait
+check zero_byte_export_ignored synced_real
 
 new_home
 SCHWAB_SYNC_WAIT_SECS=3 run_sync
