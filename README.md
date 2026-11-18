@@ -14,7 +14,7 @@ Import Charles Schwab equity awards (RSUs and ESPP) into [MoneyMoney](https://mo
 - Parses **Equity Awards Center** Excel (`.xlsx`) exports
 - Shows each **RSU vesting lot** with vest date, acquisition price, and gain/loss
 - Shows each **ESPP purchase lot** with purchase price and qualified/disqualifying status
-- One-click **SchwabSync** app: opens Schwab, syncs data, refreshes MoneyMoney
+- One-click **Schwab Sync** launcher: opens Schwab in Terminal, syncs the new download, refreshes MoneyMoney
 - `schwab-sync` terminal command for quick syncing
 - macOS notification on successful sync
 
@@ -34,7 +34,7 @@ cd money-money-schwab
 The installer will:
 1. Install the Lua extension into MoneyMoney
 2. Create the data directory inside MoneyMoney's sandbox
-3. Build and install **SchwabSync.app** to /Applications
+3. Install the **Schwab Sync.command** launcher to /Applications
 4. Add a `schwab-sync` shell alias
 5. Run an initial sync of any EAC `.xlsx` exports in ~/Downloads
 
@@ -47,23 +47,16 @@ The installer will:
 
 ## Usage
 
-### Option A: SchwabSync app (recommended)
+### Option A: Schwab Sync launcher (recommended)
 
-Open **SchwabSync** from Applications or Spotlight. It will:
+Double-click **Schwab Sync** in Applications (or find it with Spotlight). Terminal opens and it will:
 
 1. Open the [Schwab Equity Awards Center](https://client.schwab.com/app/accounts/equityawards/#/equityTodayView) in your browser
-2. Show a dialog — download the Equity Details Excel (`.xlsx`) file, then click OK
+2. Wait for you to download the Equity Details Excel (`.xlsx`) file
 3. Convert and sync it into MoneyMoney's sandbox
 4. Bring MoneyMoney to the front and refresh all accounts automatically
-   (requires Accessibility permission for SchwabSync; falls back to a
+   (requires Accessibility permission for Terminal; falls back to a
    "refresh manually" notification without it)
-
-On the **first run**, macOS may ask to let SchwabSync access "data from other
-apps" — allow it, so SchwabSync can write the synced CSV into MoneyMoney's
-container. If no prompt appears, grant it under System Settings → Privacy &
-Security → **Full Disk Access**. `install.sh` signs SchwabSync.app with a stable
-self-signed identity, so this grant survives future reinstalls (an unsigned app
-loses it on every rebuild). Every step is logged to `~/Library/Logs/SchwabSync.log`.
 
 ### Option B: Terminal
 
@@ -96,7 +89,7 @@ macOS protects `~/Downloads` with TCC (Transparency, Consent, and Control). Mone
 ```
 Schwab EAC ──Export──▶ ~/Downloads/EquityAwardsCenter_*.xlsx
                               │
-                              ▼  schwab-sync (or SchwabSync.app): xlsx2csv converts
+                              ▼  schwab-sync (or Schwab Sync.command): xlsx2csv converts
         MoneyMoney sandbox: .../Extensions/SchwabData/schwab_eac.csv
                               │
                               ▼  Refresh account (Cmd+R)
@@ -113,8 +106,8 @@ Schwab EAC ──Export──▶ ~/Downloads/EquityAwardsCenter_*.xlsx
 money-money-schwab/
 ├── extension/
 │   └── SchwabPortfolio.lua    # MoneyMoney Web Banking extension (Lua)
-├── shortcut/
-│   └── SchwabSync.applescript # One-click app source (compiled by install.sh)
+├── tests/
+│   └── test_sync_wait.sh      # Test for sync.sh --wait
 ├── xlsx2csv                  # Perl: converts EAC .xlsx export to CSV
 ├── install.sh                 # One-step installer
 ├── sync.sh                    # Converts latest EAC .xlsx and copies it into MoneyMoney's sandbox
@@ -124,8 +117,12 @@ money-money-schwab/
 ## Uninstall
 
 ```bash
-# Remove the SchwabSync app
+# Remove the launcher
+rm "/Applications/Schwab Sync.command"
+
+# Old SchwabSync.app (earlier versions) and its signing key, if present
 rm -rf /Applications/SchwabSync.app
+# Optional: delete the "SchwabSync Signing" key in Keychain Access
 
 # Remove MoneyMoney extension and data
 rm ~/Library/Containers/com.moneymoney-app.retail/Data/Library/Application\ Support/MoneyMoney/Extensions/SchwabPortfolio.lua
@@ -193,7 +190,9 @@ git config core.hooksPath .githooks
 The hook is in `.githooks/pre-commit` and will:
 1. Run `luacheck` on the Lua extension
 2. Run `shellcheck` on shell scripts
-3. Run the inline Lua tests
+3. Run the xlsx2csv and `sync.sh --wait` tests
+4. Run the inline Lua tests
+5. Scan staged changes for personal data
 
 If any check fails, the commit is blocked.
 

@@ -37,7 +37,7 @@ jobs:
       - name: Run shellcheck
         run: |
           shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
-            tests/test_check_personal_data.sh tools/check_personal_data.sh
+            tests/test_sync_wait.sh tests/test_check_personal_data.sh tools/check_personal_data.sh
 
       - name: Run tests
         run: lua5.3 extension/SchwabPortfolio.lua
@@ -46,6 +46,9 @@ jobs:
         run: |
           perl -c xlsx2csv
           bash tests/test_xlsx2csv.sh
+
+      - name: Run sync --wait test
+        run: bash tests/test_sync_wait.sh
 
       - name: Run personal-data scanner test
         run: bash tests/test_check_personal_data.sh
