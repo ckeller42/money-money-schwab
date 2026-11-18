@@ -65,7 +65,11 @@ else
 fi
 
 # sync.sh --wait test
-run "sync wait" bash tests/test_sync_wait.sh
+if command -v perl &>/dev/null; then
+  run "sync wait" bash tests/test_sync_wait.sh
+else
+  skipped perl
+fi
 
 # Lua tests
 LUA=$(command -v lua5.3 || command -v lua || echo /opt/local/bin/lua)

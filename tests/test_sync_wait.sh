@@ -7,10 +7,13 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FIXTURE="$DIR/tests/fixtures/sample_eac.xlsx"
 EXPECTED="$(cat "$DIR/tests/fixtures/expected_eac.csv")"
 FAILED=0
+HOMES=()
+trap 'rm -rf "${HOMES[@]}"' EXIT
 
 new_home() {
   HOME="$(mktemp -d)"
   export HOME
+  HOMES+=("$HOME")
   mkdir -p "$HOME/Downloads"
   TARGET="$HOME/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions/SchwabData/schwab_eac.csv"
 }
@@ -57,7 +60,8 @@ check bad_export_keeps_target failed_keeps_target
 new_home
 cp "$FIXTURE" "$HOME/Downloads/EquityAwardsCenter_old.xlsx"
 touch -t 200001010000 "$HOME/Downloads/EquityAwardsCenter_old.xlsx"
-(sleep 3 && cp "$FIXTURE" "$HOME/Downloads/EquityAwardsCenter_new.xlsx") &
+(sleep 3 && cp "$FIXTURE" "$HOME/Downloads/.new.tmp" \
+  && mv "$HOME/Downloads/.new.tmp" "$HOME/Downloads/EquityAwardsCenter_new.xlsx") &
 SCHWAB_SYNC_WAIT_SECS=20 run_sync
 wait
 check old_file_is_ignored_then_new_one_synced synced_new
@@ -65,5 +69,9 @@ check old_file_is_ignored_then_new_one_synced synced_new
 new_home
 SCHWAB_SYNC_WAIT_SECS=3 run_sync
 check timeout_without_export timed_out
+
+RC=0
+OUT="$(SCHWAB_SYNC_TEST=1 bash "$DIR/sync.sh" --from-staging /x 2>&1)" || RC=$?
+check unknown_arg_rejected test "$RC" -eq 2
 
 [ "$FAILED" -eq 0 ] || exit 1

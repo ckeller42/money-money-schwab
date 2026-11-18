@@ -48,7 +48,7 @@ validate_csv() {
 # Trigger a MoneyMoney refresh so it re-reads the just-synced CSV. MoneyMoney
 # only re-reads the file on an account refresh, and its AppleScript dictionary
 # has no refresh command — so click the first item of the Ablage/File menu
-# ("Alle Konten aktualisieren") via System Events, same as SchwabSync.app.
+# ("Alle Konten aktualisieren") via System Events.
 # Degrades to a "refresh manually" notification if MoneyMoney isn't running or
 # Accessibility permission is missing.
 refresh_moneymoney() {
@@ -128,8 +128,12 @@ if [ "$1" = "--wait" ]; then
     sleep 2
     elapsed=$((elapsed + 2))
   done
-  echo "✗ No new EquityAwardsCenter*.xlsx arrived in ~/Downloads within $((timeout / 60)) minutes"
+  if [ "$timeout" -lt 60 ]; then span="$timeout seconds"; else span="$((timeout / 60)) minutes"; fi
+  echo "✗ No new EquityAwardsCenter*.xlsx arrived in ~/Downloads within $span"
   exit 1
+elif [ -n "$1" ]; then
+  echo "Usage: sync.sh [--wait]" >&2
+  exit 2
 fi
 
 EAC=$(ls -t "$HOME/Downloads"/EquityAwardsCenter*.xlsx 2>/dev/null | head -1)
