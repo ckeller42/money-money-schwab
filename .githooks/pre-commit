@@ -43,7 +43,7 @@ fi
 # Shell linter
 if command -v shellcheck &>/dev/null; then
   run shellcheck shellcheck install.sh sync.sh tests/test_xlsx2csv.sh \
-    tests/test_check_personal_data.sh tools/check_personal_data.sh
+    tests/test_sync_wait.sh tests/test_check_personal_data.sh tools/check_personal_data.sh
 else
   skipped shellcheck
 fi
@@ -63,6 +63,9 @@ if command -v perl &>/dev/null; then
 else
   skipped perl
 fi
+
+# sync.sh --wait test
+run "sync wait" bash tests/test_sync_wait.sh
 
 # Lua tests
 LUA=$(command -v lua5.3 || command -v lua || echo /opt/local/bin/lua)

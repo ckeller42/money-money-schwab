@@ -1,22 +1,22 @@
 #!/bin/bash
-# Convert the latest Schwab Equity Awards .xlsx export to CSV and sync it
-# into MoneyMoney's sandbox.
+# Convert a Schwab Equity Awards .xlsx export to CSV and sync it into
+# MoneyMoney's sandbox.
 #
 # Usage:
-#   schwab-sync                          # finds latest .xlsx in ~/Downloads
-#   schwab-sync --from-staging <path>    # uses a staging file (used by SchwabSync.app)
+#   sync.sh          # converts the newest ~/Downloads/EquityAwardsCenter*.xlsx
+#   sync.sh --wait   # opens Schwab, waits for a fresh export in ~/Downloads, syncs it
+#
+# Environment:
+#   SCHWAB_SYNC_WAIT_SECS  --wait timeout in seconds (default 900)
+#   SCHWAB_SYNC_TEST=1     disable `open`, every osascript call and the
+#                          MoneyMoney refresh (used by tests)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONVERTER="$SCRIPT_DIR/xlsx2csv"
 DATA_DIR="$HOME/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions/SchwabData"
 mkdir -p "$DATA_DIR"
 TARGET="$DATA_DIR/schwab_eac.csv"
-
-cleanup_staging() {
-  if [ -n "$STAGING_DIR" ] && [ -d "$STAGING_DIR" ]; then
-    rm -rf "$STAGING_DIR"
-  fi
-}
+SCHWAB_URL="https://client.schwab.com/app/accounts/equityawards/#/equityTodayView"
 
 # Sanity check: does the CSV have the sections we expect?
 # Returns non-zero on failure so callers can abort BEFORE replacing a
@@ -40,7 +40,7 @@ validate_csv() {
 
   if [ -n "$errors" ]; then
     echo "✗ CSV validation failed: $errors"
-    osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null || true
+    [ -n "$SCHWAB_SYNC_TEST" ] || osascript -e "display notification \"$errors\" with title \"Schwab Sync: Bad Export\"" 2>/dev/null || true
     return 1
   fi
 }
@@ -52,6 +52,7 @@ validate_csv() {
 # Degrades to a "refresh manually" notification if MoneyMoney isn't running or
 # Accessibility permission is missing.
 refresh_moneymoney() {
+  [ -n "$SCHWAB_SYNC_TEST" ] && return 0
   if ! pgrep -xq MoneyMoney; then
     osascript -e 'display notification "Synced. Open MoneyMoney and refresh (⌘R)." with title "Schwab Sync"' 2>/dev/null || true
     return
@@ -76,77 +77,64 @@ APPLESCRIPT
   fi
 }
 
-if [ "$1" = "--from-staging" ]; then
-  STAGING="$2"
-  if [ -z "$STAGING" ] || [ ! -f "$STAGING" ]; then
-    echo "No staging file provided"
-    exit 1
+# sync_xlsx XLSX: convert, validate, compare, move, refresh.
+# Order matters: a bad export must never replace a known-good target.
+sync_xlsx() {
+  local xlsx="$1" name tmp
+  name="$(basename "$xlsx")"
+  tmp="$(mktemp)"
+  if ! perl "$CONVERTER" "$xlsx" > "$tmp"; then
+    rm -f "$tmp"
+    echo "✗ Failed to convert $name"
+    return 1
   fi
-
-  # Only set the cleanup trap once we know STAGING is a real file —
-  # otherwise dirname "" yields "." and cleanup would target the cwd.
-  STAGING_DIR="$(dirname "$STAGING")"
-  trap cleanup_staging EXIT
-
-  TMP_CSV="$(mktemp)"
-  if ! perl "$CONVERTER" "$STAGING" > "$TMP_CSV"; then
-    rm -f "$TMP_CSV"
-    echo "✗ Failed to convert staging file"
-    exit 1
+  if ! validate_csv "$tmp"; then
+    rm -f "$tmp"
+    echo "✗ Keeping existing data — $name doesn't look like a Schwab EAC export"
+    return 1
   fi
-
-  # Validate BEFORE replacing the target — a bad export must never
-  # clobber a known-good CSV.
-  if ! validate_csv "$TMP_CSV"; then
-    rm -f "$TMP_CSV"
-    echo "✗ Keeping existing data — staging file doesn't look like a Schwab EAC export"
-    exit 1
+  if [ -f "$TARGET" ] && cmp -s "$tmp" "$TARGET"; then
+    rm -f "$tmp"
+    echo "Already up to date: $name"
+    return 0
   fi
+  if ! mv "$tmp" "$TARGET"; then
+    rm -f "$tmp"
+    echo "✗ Failed to replace target CSV"
+    return 1
+  fi
+  echo "✓ Synced: $name"
+  refresh_moneymoney
+}
 
-  if [ -f "$TARGET" ] && cmp -s "$TMP_CSV" "$TARGET"; then
-    rm -f "$TMP_CSV"
-    echo "Already up to date"
-  else
-    if ! mv "$TMP_CSV" "$TARGET"; then
-      rm -f "$TMP_CSV"
-      echo "✗ Failed to replace target CSV"
-      exit 1
+# newest_recent_export MINUTES: newest EquityAwardsCenter*.xlsx in
+# ~/Downloads modified within MINUTES minutes; prints nothing if none.
+newest_recent_export() {
+  find "$HOME/Downloads" -maxdepth 1 -name 'EquityAwardsCenter*.xlsx' -mmin "-$1" \
+    -exec ls -t {} + 2>/dev/null | head -1
+}
+
+if [ "$1" = "--wait" ]; then
+  timeout="${SCHWAB_SYNC_WAIT_SECS:-900}"
+  [ -n "$SCHWAB_SYNC_TEST" ] || open "$SCHWAB_URL"
+  echo "Download the Equity Details Excel (.xlsx) from Schwab — waiting for it in ~/Downloads…"
+  elapsed=0
+  while [ "$elapsed" -lt "$timeout" ]; do
+    EAC="$(newest_recent_export $((10 + elapsed / 60 + 1)))"
+    if [ -n "$EAC" ]; then
+      sync_xlsx "$EAC"
+      exit $?
     fi
-    echo "✓ Synced from staging"
-    refresh_moneymoney
-  fi
-else
-  EAC=$(ls -t "$HOME/Downloads"/EquityAwardsCenter*.xlsx 2>/dev/null | head -1)
-  if [ -z "$EAC" ]; then
-    echo "No EquityAwardsCenter .xlsx found in ~/Downloads"
-    exit 1
-  fi
-
-  TMP_CSV="$(mktemp)"
-  if ! perl "$CONVERTER" "$EAC" > "$TMP_CSV"; then
-    rm -f "$TMP_CSV"
-    echo "✗ Failed to convert $(basename "$EAC")"
-    exit 1
-  fi
-
-  # Validate BEFORE replacing the target — a bad export must never
-  # clobber a known-good CSV.
-  if ! validate_csv "$TMP_CSV"; then
-    rm -f "$TMP_CSV"
-    echo "✗ Keeping existing data — $(basename "$EAC") doesn't look like a Schwab EAC export"
-    exit 1
-  fi
-
-  if [ -f "$TARGET" ] && cmp -s "$TMP_CSV" "$TARGET"; then
-    rm -f "$TMP_CSV"
-    echo "Already up to date: $(basename "$EAC")"
-  else
-    if ! mv "$TMP_CSV" "$TARGET"; then
-      rm -f "$TMP_CSV"
-      echo "✗ Failed to replace target CSV"
-      exit 1
-    fi
-    echo "✓ Synced: $(basename "$EAC")"
-    refresh_moneymoney
-  fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "✗ No new EquityAwardsCenter*.xlsx arrived in ~/Downloads within $((timeout / 60)) minutes"
+  exit 1
 fi
+
+EAC=$(ls -t "$HOME/Downloads"/EquityAwardsCenter*.xlsx 2>/dev/null | head -1)
+if [ -z "$EAC" ]; then
+  echo "No EquityAwardsCenter .xlsx found in ~/Downloads"
+  exit 1
+fi
+sync_xlsx "$EAC"
