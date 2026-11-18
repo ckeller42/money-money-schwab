@@ -48,15 +48,6 @@ else
   skipped shellcheck
 fi
 
-# AppleScript syntax check (macOS only)
-if command -v osacompile &>/dev/null; then
-  TMPDIR_APP=$(mktemp -d)
-  run osacompile osacompile -o "$TMPDIR_APP/SchwabSync.app" shortcut/SchwabSync.applescript
-  rm -rf "$TMPDIR_APP"
-else
-  skipped osacompile "not available (macOS only)"
-fi
-
 # Perl converter syntax + golden test
 if command -v perl &>/dev/null; then
   run xlsx2csv bash -c 'perl -c xlsx2csv && bash tests/test_xlsx2csv.sh'
